@@ -1,4 +1,6 @@
 import os
+import hashlib
+import base64
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import Request, HTTPException, status, Depends
@@ -11,11 +13,16 @@ SECRET_KEY = os.getenv("JWT_SECRET", "supersecretkey_change_in_production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
 
+def pre_hash_password(password: str) -> str:
+    """Pre-hashes the password to strictly satisfy bcrypt's 72-byte size limits natively"""
+    hasher = hashlib.sha256(password.encode('utf-8'))
+    return base64.b64encode(hasher.digest()).decode('ascii')
+
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    return pwd_context.verify(pre_hash_password(plain_password), hashed_password)
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    return pwd_context.hash(pre_hash_password(password))
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
