@@ -1,28 +1,29 @@
 import os
-import hashlib
-import base64
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import Request, HTTPException, status, Depends
 import jwt
-from passlib.context import CryptContext
 
-# bcrypt setup (handled by passlib here for simplicity)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.getenv("JWT_SECRET", "supersecretkey_change_in_production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
 
-def pre_hash_password(password: str) -> str:
-    """Pre-hashes the password to strictly satisfy bcrypt's 72-byte size limits natively"""
-    hasher = hashlib.sha256(password.encode('utf-8'))
-    return base64.b64encode(hasher.digest()).decode('ascii')
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    try:
+        # Check against raw bcrypt (encode strings to bytes)
+        return bcrypt.checkpw(
+            plain_password.encode('utf-8'), 
+            hashed_password.encode('utf-8')
+        )
+    except ValueError:
+        return False
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(pre_hash_password(plain_password), hashed_password)
-
-def get_password_hash(password):
-    return pwd_context.hash(pre_hash_password(password))
+def get_password_hash(password: str) -> str:
+    # Hash password securely using raw bcrypt and salt
+    salt = bcrypt.gensalt()
+    hashed_bytes = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed_bytes.decode('utf-8')
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
